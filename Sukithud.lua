@@ -1,5 +1,5 @@
 -- ==========================================
--- RED-BLACK THEME: SUKIT HUD (DELTA OPTIMIZED)
+-- RED-BLACK THEME: SUKIT HUB (DELTA OPTIMIZED)
 -- ==========================================
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -10,13 +10,13 @@ local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
 -- ลบ UI เก่าถ้ามี
-if CoreGui:FindFirstChild("SukitHud") then
-    CoreGui.SukitHud:Destroy()
+if CoreGui:FindFirstChild("SukitHub") then
+    CoreGui.SukitHub:Destroy()
 end
 
 -- 1. สร้าง ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SukitHud"
+ScreenGui.Name = "SukitHub"
 ScreenGui.Parent = CoreGui
 ScreenGui.ResetOnSpawn = false
 
@@ -24,16 +24,16 @@ ScreenGui.ResetOnSpawn = false
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
 ToggleBtn.Position = UDim2.new(0, 10, 0, 10)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-ToggleBtn.BorderColor3 = Color3.fromRGB(255, 0, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- พื้นหลังแดง
+ToggleBtn.BorderColor3 = Color3.fromRGB(15, 15, 15)
 ToggleBtn.BorderSizePixel = 2
 ToggleBtn.Text = "UI"
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
+ToggleBtn.TextColor3 = Color3.fromRGB(0, 0, 0) -- ตัวหนังสือดำ
 ToggleBtn.Font = Enum.Font.Code
 ToggleBtn.TextScaled = true
 ToggleBtn.Parent = ScreenGui
 ToggleBtn.Active = true
-ToggleBtn.Draggable = true -- ให้ปุ่ม UI ลากได้ด้วย
+ToggleBtn.Draggable = true
 
 -- 3. เมนเฟรม (Main Frame)
 local MainFrame = Instance.new("Frame")
@@ -74,14 +74,30 @@ end)
 -- หัวข้อ UI (Title)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
-Title.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+Title.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- พื้นหลังแดงเพื่อให้ตัวหนังสือดำเด่นขึ้น
 Title.BorderColor3 = Color3.fromRGB(255, 0, 0)
-Title.Text = " Sukit Hud"
-Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+Title.Text = " SUKIT HUB"
+Title.TextColor3 = Color3.fromRGB(0, 0, 0) -- ตัวหนังสือสีดำ
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Font = Enum.Font.Code
 Title.TextSize = 20
 Title.Parent = MainFrame
+
+-- ปุ่มปิด UI แบบถาวร (Close Button)
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -30, 0, 0)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+CloseBtn.Font = Enum.Font.Code
+CloseBtn.TextSize = 20
+CloseBtn.Parent = Title
+
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy() -- ลบ UI ออกจากเกมถาวร
+end)
 
 -- 4. ระบบหมวดหมู่ (Tab System)
 local TabContainer = Instance.new("Frame")
@@ -97,7 +113,7 @@ CreatorText.Size = UDim2.new(1, 0, 0, 20)
 CreatorText.Position = UDim2.new(0, 0, 1, -25)
 CreatorText.BackgroundTransparency = 1
 CreatorText.Text = "By Dr.sukit"
-CreatorText.TextColor3 = Color3.fromRGB(180, 0, 0)
+CreatorText.TextColor3 = Color3.fromRGB(255, 0, 0)
 CreatorText.Font = Enum.Font.Code
 CreatorText.TextSize = 14
 CreatorText.Parent = TabContainer
@@ -188,19 +204,16 @@ FlyBtn.MouseButton1Click:Connect(function()
         
         hum.PlatformStand = true
         
-        -- ดึงทิศทางการเดินจากจอยสติ๊ก (มือถือ) หรือปุ่ม WASD (คอม)
+        -- ดึงทิศทางการเดิน
         _G.FlyLoop = RunService.RenderStepped:Connect(function()
             local cam = workspace.CurrentCamera
             bg.cframe = cam.CFrame
             
             local moveDir = hum.MoveDirection
             if moveDir.Magnitude > 0 then
-                -- บินไปตามทิศทางที่หันหน้าและกดเดิน
                 bv.velocity = cam.CFrame.LookVector * (flySpeed * (UserInputService:IsKeyDown(Enum.KeyCode.S) and -1 or 1)) 
                 if UserInputService.TouchEnabled then
-                    -- สำหรับมือถือ ให้ใช้ MoveDirection โดยตรง
                     bv.velocity = (cam.CFrame.LookVector * moveDir.Z * -1 + cam.CFrame.RightVector * moveDir.X) * flySpeed
-                    -- ถ้าเคลื่อนที่ไปข้างหน้าอย่างเดียว ใช้แบบง่าย
                     if moveDir.Magnitude > 0 then
                         bv.velocity = cam.CFrame.LookVector * flySpeed
                     end
@@ -222,7 +235,7 @@ FlyBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- 7. ฟังก์ชันปุ่มเปิด/ปิด (Toggle Logic)
+-- 7. ฟังก์ชันปุ่มเปิด/ปิด UI ย่อ-ขยาย
 ToggleBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
 end)
