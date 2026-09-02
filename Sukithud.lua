@@ -125,7 +125,7 @@ ToggleIcon.Draggable = true -- สามารถลากขยับปุ่�
 -- -------------------------------------------------------------
 -- 🖼️ จุดใส่ลิงก์รูปภาพ / GIF Icon (นำลิงก์รูปภาพมาใส่ตรงนี้ได้เลย)
 -- -------------------------------------------------------------
-ToggleIcon.Image = "loadstring(game:HttpGet("https://raw.githubusercontent.com/sukit2775/rejoin-hud/refs/heads/main/SUKI" -- <--- เอาลิงก์หรือ Asset ID มาวางทับในเครื่องหมายคำพูดนี้
+ToggleIcon.Image"https://raw.githubusercontent.com/sukit2775/rejoin-hud/refs/heads/main/iconSUKITHUB.png" -- <--- เอาลิงก์หรือ Asset ID มาวางทับในเครื่องหมายคำพูดนี้
 
 -- ปรับแต่งรูปทรงวงกลม
 IconCorner.CornerRadius = UDim.new(1, 0) -- บังคับทรงกลม 100%
