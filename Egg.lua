@@ -1,4 +1,4 @@
--- [[ Auto Egg & PVP Hub UI ]] --
+-- [[ Auto Egg & PVP Hub UI with SUKITHUB Toggle Icon ]] --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -11,7 +11,7 @@ local Config = {
     WalkSpeed = 300,
     SpeedEnabled = false,
     AutoSteal = false,
-    SelectedRarity = "Rare", -- Common, Rare, Epic, Legendary
+    SelectedRarity = "Rare",
     SelectedZone = "Zone 1",
     TargetBigEgg = false,
     KillAllMap = false,
@@ -20,12 +20,53 @@ local Config = {
     SelectedPlayerName = nil
 }
 
+-- Custom Asset Loader for Image URL
+local function GetAsset(url, fileName)
+    if writefile and getcustomasset and isfile and game.HttpGet then
+        pcall(function()
+            if not isfile(fileName) then
+                writefile(fileName, game:HttpGet(url))
+            end
+        end)
+        if isfile(fileName) then
+            return getcustomasset(fileName)
+        end
+    end
+    return url
+end
+
+local IconAsset = GetAsset("https://i.ibb.co/bgQ9GgKv/icon-SUKITHUB.jpg", "sukithub_icon.png")
+
 -- UI Container Creation
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AutoEggHubUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
+---------------------------------------------------------
+-- Floating Open/Close Toggle Button (ไอคอนเปิด-ปิด)
+---------------------------------------------------------
+local ToggleButton = Instance.new("ImageButton")
+ToggleButton.Name = "SUKITHUB_Toggle"
+ToggleButton.Size = UDim2.new(0, 55, 0, 55)
+ToggleButton.Position = UDim2.new(0, 20, 0.5, -27)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+ToggleButton.Image = IconAsset
+ToggleButton.Active = true
+ToggleButton.Draggable = true
+ToggleButton.Parent = ScreenGui
+
+-- ทำให้ปุ่มไอคอนเป็นทรงกลมพร้อมเส้นขอบ
+local ToggleCorner = Instance.new("UICorner", ToggleButton)
+ToggleCorner.CornerRadius = UDim.new(1, 0)
+
+local ToggleStroke = Instance.new("UIStroke", ToggleButton)
+ToggleStroke.Color = Color3.fromRGB(0, 255, 170)
+ToggleStroke.Thickness = 2.5
+
+---------------------------------------------------------
+-- Main Frame (หน้าต่างหลัก)
+---------------------------------------------------------
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 520, 0, 360)
@@ -39,11 +80,16 @@ MainFrame.Parent = ScreenGui
 local UICorner = Instance.new("UICorner", MainFrame)
 UICorner.CornerRadius = UDim.new(0, 10)
 
+-- Toggle GUI Visibility Event
+ToggleButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
 -- Header Bar
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Size = UDim2.new(1, -20, 0, 40)
 TitleLabel.Position = UDim2.new(0, 15, 0, 0)
-TitleLabel.Text = "EGG STEALER & PVP HUB"
+TitleLabel.Text = "SUKITHUB - EGG & PVP HUB"
 TitleLabel.TextColor3 = Color3.fromRGB(0, 255, 170)
 TitleLabel.TextSize = 18
 TitleLabel.Font = Enum.Font.SourceSansBold
@@ -223,7 +269,7 @@ local function CreateSlider(parent, text, min, max, default, callback)
 end
 
 ---------------------------------------------------------
--- 1. TAB: Auto Egg System
+-- UI Elements Binding
 ---------------------------------------------------------
 CreateToggle(AutoEggPage, "เปิดใช้งาน Auto Steal (ขโมยไข่อัตโนมัติ)", Config.AutoSteal, function(v)
     Config.AutoSteal = v
@@ -233,9 +279,6 @@ CreateToggle(AutoEggPage, "เน้นขโมยไข่ใหญ่ (Big Eg
     Config.TargetBigEgg = v
 end)
 
----------------------------------------------------------
--- 2. TAB: PVP System
----------------------------------------------------------
 CreateToggle(PVPPage, "โจมตีทุกคนในแมพ (Kill All Map)", Config.KillAllMap, function(v)
     Config.KillAllMap = v
 end)
@@ -248,9 +291,6 @@ CreateToggle(PVPPage, "เปิดระบบล็อคเป้าผู้
     Config.TargetLock = v
 end)
 
----------------------------------------------------------
--- 3. TAB: Player Settings
----------------------------------------------------------
 CreateToggle(PlayerPage, "เปิดใช้งานความเร็วพิเศษ", Config.SpeedEnabled, function(v)
     Config.SpeedEnabled = v
 end)
@@ -260,17 +300,14 @@ CreateSlider(PlayerPage, "ความเร็วการวิ่ง (Speed)"
 end)
 
 ---------------------------------------------------------
--- Core Loop & Game Mechanics Implementation
+-- Core Loop & Game Mechanics
 ---------------------------------------------------------
-
--- Speed Modification Loop
 RunService.Stepped:Connect(function()
     if Config.SpeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         LocalPlayer.Character.Humanoid.WalkSpeed = Config.WalkSpeed
     end
 end)
 
--- Target Lock Loop (PVP)
 RunService.RenderStepped:Connect(function()
     if Config.TargetLock and Config.SelectedPlayerName then
         local targetPlayer = Players:FindFirstChild(Config.SelectedPlayerName)
@@ -280,24 +317,18 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Auto Steal Egg & PVP Attack Logic Loop
 task.spawn(function()
     while task.wait(0.1) do
         local character = LocalPlayer.Character
         if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
         
-        -- Auto Steal Egg Functionality
         if Config.AutoSteal then
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if obj:IsA("ProximityPrompt") and obj.Parent then
                     local name = obj.Parent.Name:lower()
-                    
-                    -- Filtering logic for Big Egg
                     if Config.TargetBigEgg and not name:find("big") then
                         continue
                     end
-                    
-                    -- Interact with Egg Prompt
                     if obj.Parent:FindFirstChild("TouchInterest") or name:find("egg") then
                         fireproximityprompt(obj)
                     end
@@ -305,18 +336,14 @@ task.spawn(function()
             end
         end
         
-        -- PVP Attack Logic (Map / Zone)
         if Config.KillAllMap or Config.KillZone then
             for _, player in ipairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     local targetRoot = player.Character.HumanoidRootPart
                     local dist = (character.HumanoidRootPart.Position - targetRoot.Position).Magnitude
-                    
-                    -- Check zone condition if KillZone is enabled
-                    local inZone = dist <= 150 -- Zone radius threshold
+                    local inZone = dist <= 150
                     
                     if Config.KillAllMap or (Config.KillZone and inZone) then
-                        -- Simulating tool attack/touch
                         local tool = character:FindFirstChildOfClass("Tool")
                         if tool then
                             tool:Activate()
