@@ -1,0 +1,351 @@
+-- =================================================================
+-- SUKIT HUB : NORMAL SCRIPT (COMPLETE EDITION)
+-- =================================================================
+
+_G.Config = {
+    MasterFarm = true,              -- เปิด/ปิด ฟาร์มหลัก
+    FastAttack = true,              -- เปิดใช้งาน Fast Attack
+    BringMob = true,                -- รวมมอนสเตอร์
+    AutoStats = true,               -- อัปสเตตัสอัตโนมัติ
+    TargetStat = "Melee",           -- สายสเตตัสหลัก (Melee / Defense / Sword / Demon Fruit)
+    DistanceAboveMob = 6.5,         -- ระยะลอยเหนือหัวมอนสเตอร์
+    
+    UI = {
+        IconURL = "https://i.ibb.co/bgQ9GgKv/icon-SUKITHUB.jpg",
+        IconFileName = "SUKIT_HUB_Icon_v2.jpg"
+    }
+}
+
+_G.FastAttack = _G.Config.FastAttack
+
+-- Global Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local LocalPlayer = Players.LocalPlayer
+
+local CommF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+local MobFolder = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("Mobs") or Workspace
+
+-- System Logs
+local ActionLogs = {}
+local function AddLog(msg)
+    local timestamp = os.date("%X")
+    table.insert(ActionLogs, 1, "[" .. timestamp .. "] " .. msg)
+    if #ActionLogs > 15 then table.remove(ActionLogs) end
+end
+
+AddLog("เริ่มต้นระบบ SUKIT HUB : NORMAL SCRIPT")
+
+-- =================================================================
+-- 1. FAST ATTACK ENGINE (ตามโค้ดที่คุณส่งมา)
+-- =================================================================
+spawn(function()
+    game:GetService("RunService").RenderStepped:Connect(function()
+        pcall(function()
+            if _G.FastAttack then
+                local Combat = require(game:GetService("Players").LocalPlayer.PlayerScripts.CombatFramework)
+                local Cemara = require(game:GetService("Players").LocalPlayer.PlayerScripts.CombatFramework.CameraShaker)
+                Cemara.CameraShakeInstance.CameraShakeState = {FadingIn = 3, FadingOut = 2, Sustained = 0, Inactive = 1}
+                Combat.activeController.timeToNextAttack = 0
+                Combat.activeController.hitboxMagnitude = 120
+                Combat.activeController.increment = 3
+            end
+        end)
+    end) 
+end)
+
+spawn(function()
+    game:GetService("RunService").RenderStepped:Connect(function()
+        pcall(function()
+            if _G.FastAttack then
+                game:GetService'VirtualUser':CaptureController()
+                game:GetService'VirtualUser':Button1Down(Vector2.new(1280, 672))
+            end
+        end)
+    end) 
+end)
+
+-- =================================================================
+-- 2. NOCLIP & AUTO EQUIP WEAPON (แก้ปัญหาตีไม่เข้า)
+-- =================================================================
+RunService.Stepped:Connect(function()
+    if LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    end
+end)
+
+local function EquipWeapon()
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    -- หากถืออาวุธอันใดอันหนึ่งอยู่แล้ว ให้ทำงานต่อได้เลย
+    for _, tool in pairs(char:GetChildren()) do
+        if tool:IsA("Tool") then
+            return
+        end
+    end
+    
+    -- ถ้าร่างกายยังไม่ได้ถืออาวุธ ให้ไปดึงอาวุธจาก Backpack มาถือทันที
+    local backpack = LocalPlayer.Backpack
+    for _, tool in pairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            char.Humanoid:EquipTool(tool)
+            break
+        end
+    end
+end
+
+-- =================================================================
+-- 3. TWEEN & BRING MOB SYSTEM
+-- =================================================================
+local function SafeTween(targetCFrame, speed)
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = LocalPlayer.Character.HumanoidRootPart
+    local distance = (hrp.Position - targetCFrame.Position).Magnitude
+    local duration = distance / (speed or 250)
+    
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
+    
+    local bv = Instance.new("BodyVelocity")
+    bv.Velocity = Vector3.new(0, 0, 0)
+    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.Parent = hrp
+    
+    tween:Play()
+    tween.Completed:Wait()
+    bv:Destroy()
+end
+
+local function BringMonstersToPoint(mobName, targetCFrame)
+    if not _G.Config.BringMob then return end
+    for _, mob in pairs(MobFolder:GetChildren()) do
+        if mob:IsA("Model") and (mob.Name == mobName or mob.Name:find(mobName)) then
+            local hrp = mob:FindFirstChild("HumanoidRootPart")
+            local hum = mob:FindFirstChild("Humanoid")
+            if hrp and hum and hum.Health > 0 then
+                if (hrp.Position - targetCFrame.Position).Magnitude < 180 then
+                    hrp.CanCollide = false
+                    hrp.CFrame = targetCFrame
+                end
+            end
+        end
+    end
+end
+
+-- =================================================================
+-- 4. QUEST & LEVEL DATA
+-- =================================================================
+local function GetPlayerLevel()
+    pcall(function() return LocalPlayer.Data.Level.Value end)
+    return 1
+end
+
+local function GetQuestData()
+    local lvl = GetPlayerLevel()
+    if lvl >= 1 and lvl < 15 then return {Mob = "Bandit", Quest = "BanditQuest1", QuestID = 1, CFrame = CFrame.new(1050, 15, -1200)}
+    elseif lvl >= 15 and lvl < 30 then return {Mob = "Monkey", Quest = "JungleQuest", QuestID = 1, CFrame = CFrame.new(-1500, 20, 300)}
+    elseif lvl >= 30 and lvl < 60 then return {Mob = "Gorilla", Quest = "JungleQuest", QuestID = 2, CFrame = CFrame.new(-1240, 15, -500)}
+    elseif lvl >= 60 and lvl < 90 then return {Mob = "Pirate", Quest = "BuggyQuest1", QuestID = 1, CFrame = CFrame.new(-1140, 15, 3800)}
+    elseif lvl >= 90 and lvl < 120 then return {Mob = "Desert Bandit", Quest = "DesertQuest", QuestID = 1, CFrame = CFrame.new(895, 15, 4390)}
+    elseif lvl >= 120 and lvl < 150 then return {Mob = "Snow Bandit", Quest = "SnowQuest", QuestID = 1, CFrame = CFrame.new(1280, 15, -1300)}
+    elseif lvl >= 150 and lvl < 190 then return {Mob = "Chief Pirate", Quest = "MarineQuest2", QuestID = 1, CFrame = CFrame.new(-5030, 20, 4320)}
+    elseif lvl >= 190 and lvl < 250 then return {Mob = "Sky Bandit", Quest = "SkyQuest", QuestID = 1, CFrame = CFrame.new(-4840, 715, -2620)}
+    elseif lvl >= 250 and lvl < 300 then return {Mob = "Prisoner", Quest = "PrisonerQuest", QuestID = 1, CFrame = CFrame.new(4870, 5, 735)}
+    elseif lvl >= 300 and lvl < 375 then return {Mob = "Toga Warrior", Quest = "ColosseumQuest", QuestID = 1, CFrame = CFrame.new(-1430, 8, -2760)}
+    elseif lvl >= 375 and lvl < 450 then return {Mob = "Military Soldier", Quest = "MagmaQuest", QuestID = 1, CFrame = CFrame.new(-5300, 12, 8500)}
+    elseif lvl >= 450 and lvl < 525 then return {Mob = "Fishman Warrior", Quest = "FishmanQuest", QuestID = 1, CFrame = CFrame.new(61100, 18, 1500)}
+    elseif lvl >= 525 and lvl < 625 then return {Mob = "God's Guard", Quest = "SkyExp1Quest", QuestID = 1, CFrame = CFrame.new(-7720, 5600, -1430)}
+    else return {Mob = "Galley Pirate", Quest = "FountainQuest", QuestID = 1, CFrame = CFrame.new(5560, 40, 4000)} end
+end
+
+-- Auto Stats System
+task.spawn(function()
+    while task.wait(2) do
+        if _G.Config.AutoStats then
+            pcall(function()
+                local points = LocalPlayer.Data.Points.Value
+                if points and points > 0 then
+                    CommF:InvokeServer("AddPoint", _G.Config.TargetStat, points)
+                end
+            end)
+        end
+    end
+end)
+
+-- Shop Functions
+local Shop = {}
+function Shop:BuyBusoHaki() return CommF:InvokeServer("BuyHaki", "Buso") end
+function Shop:BuyGeppo() return CommF:InvokeServer("BuyHaki", "Geppo") end
+function Shop:BuyBlackLeg() return CommF:InvokeServer("BuyBlackLeg") end
+function Shop:BuyElectro() return CommF:InvokeServer("BuyElectro") end
+function Shop:BuyFishmanKarate() return CommF:InvokeServer("BuyFishmanKarate") end
+function Shop:RandomFruit() return CommF:InvokeServer("Cousin", "Buy") end
+_G.Shop = Shop
+
+-- =================================================================
+-- 5. MAIN FARM LOOP (NORMAL MODE)
+-- =================================================================
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.Config.MasterFarm then
+            pcall(function()
+                local player = LocalPlayer
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character.Humanoid.Health > 0 then
+                    
+                    -- ถืออาวุธอัตโนมัติเพื่อให้ Fast Attack ทำงาน
+                    EquipWeapon()
+
+                    local qData = GetQuestData()
+                    
+                    -- เช็กว่ารับเควสต์แล้วหรือยัง
+                    local hasQuest = false
+                    pcall(function() hasQuest = player.PlayerGui.MainQuest.Visible end)
+                    
+                    if not hasQuest then
+                        CommF:InvokeServer("StartQuest", qData.Quest, qData.QuestID)
+                        task.wait(0.5)
+                    end
+
+                    -- ค้นหามอนสเตอร์
+                    local targetMob = nil
+                    for _, mob in pairs(MobFolder:GetChildren()) do
+                        if mob:IsA("Model") and (mob.Name == qData.Mob or mob.Name:find(qData.Mob)) then
+                            local hum = mob:FindFirstChild("Humanoid")
+                            local hrp = mob:FindFirstChild("HumanoidRootPart")
+                            if hum and hrp and hum.Health > 0 then
+                                targetMob = mob
+                                break
+                            end
+                        end
+                    end
+
+                    if not targetMob then
+                        SafeTween(qData.CFrame)
+                    else
+                        local hum = targetMob:FindFirstChild("Humanoid")
+                        local hrp = targetMob:FindFirstChild("HumanoidRootPart")
+                        
+                        while hum and hum.Health > 0 and _G.Config.MasterFarm and hrp do
+                            task.wait(0.01)
+                            EquipWeapon()
+                            
+                            -- ลอยเหนือหัวมอนสเตอร์แบบ "ยืนตรง" (เอา CFrame.Angles ออก)
+                            player.Character.HumanoidRootPart.CFrame = hrp.CFrame * CFrame.new(0, _G.Config.DistanceAboveMob, 0)
+                            
+                            -- ดึงมอนสเตอร์มารวม
+                            BringMonstersToPoint(qData.Mob, hrp.CFrame)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- =================================================================
+-- 6. UI DISPLAY
+-- =================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SukitHubNormalGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 9999
+
+if gethui then ScreenGui.Parent = gethui()
+elseif syn and syn.protect_gui then syn.protect_gui(ScreenGui); ScreenGui.Parent = CoreGui
+elseif CoreGui:FindFirstChild("RobloxGui") then ScreenGui.Parent = CoreGui
+else ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local ToggleIcon = Instance.new("ImageButton")
+ToggleIcon.Parent = ScreenGui
+ToggleIcon.Size = UDim2.new(0, 60, 0, 60)
+ToggleIcon.Position = UDim2.new(0.04, 0, 0.2, 0)
+ToggleIcon.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+ToggleIcon.Active = true
+ToggleIcon.Draggable = true
+Instance.new("UICorner", ToggleIcon).CornerRadius = UDim.new(1, 0)
+
+local IconStroke = Instance.new("UIStroke")
+IconStroke.Thickness = 2.5
+IconStroke.Color = Color3.fromRGB(0, 255, 150)
+IconStroke.Parent = ToggleIcon
+
+task.spawn(function()
+    pcall(function()
+        local url = _G.Config.UI.IconURL
+        local file = _G.Config.UI.IconFileName
+        if writefile and getcustomasset then
+            if not isfile(file) then writefile(file, game:HttpGet(url)) end
+            ToggleIcon.Image = getcustomasset(file)
+        else ToggleIcon.Image = url end
+    end)
+end)
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0, 340, 0, 320)
+MainFrame.Position = UDim2.new(0.5, -170, 0.5, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+MainFrame.Active = true
+MainFrame.Draggable = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 2
+MainStroke.Color = Color3.fromRGB(0, 255, 150)
+MainStroke.Parent = MainFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Parent = MainFrame
+TitleLabel.Size = UDim2.new(1, 0, 0, 40)
+TitleLabel.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+TitleLabel.Text = "SUKIT HUB : NORMAL SCRIPT"
+TitleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+TitleLabel.TextSize = 14
+TitleLabel.Font = Enum.Font.SourceSansBold
+Instance.new("UICorner", TitleLabel).CornerRadius = UDim.new(0, 12)
+
+local LogBox = Instance.new("ScrollingFrame")
+LogBox.Parent = MainFrame
+LogBox.Size = UDim2.new(1, -20, 1, -60)
+LogBox.Position = UDim2.new(0, 10, 0, 50)
+LogBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+LogBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+LogBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Instance.new("UICorner", LogBox).CornerRadius = UDim.new(0, 8)
+
+local LogLayout = Instance.new("UIListLayout")
+LogLayout.Parent = LogBox
+LogLayout.Padding = UDim.new(0, 3)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        for _, child in pairs(LogBox:GetChildren()) do
+            if child:IsA("TextLabel") then child:Destroy() end
+        end
+        for _, txt in ipairs(ActionLogs) do
+            local lbl = Instance.new("TextLabel")
+            lbl.Parent = LogBox
+            lbl.Size = UDim2.new(1, -10, 0, 18)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = txt
+            lbl.TextColor3 = Color3.fromRGB(180, 255, 200)
+            lbl.TextSize = 11
+            lbl.Font = Enum.Font.SourceSans
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+        end
+    end
+end)
+
+ToggleIcon.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+print("[SUKIT HUB] Normal Script พร้อมใช้งานแล้ว!")
