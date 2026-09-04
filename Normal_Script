@@ -1,15 +1,27 @@
 -- =================================================================
--- SUKIT HUB : NORMAL SCRIPT (COMPLETE EDITION)
+-- SUKIT HUB : GENERAL / NORMAL SCRIPT (FULL FEATURED EDITION)
 -- =================================================================
 
 _G.Config = {
-    MasterFarm = true,              -- เปิด/ปิด ฟาร์มหลัก
+    -- Combat & Farm
+    MasterFarm = false,             -- เปิด/ปิด ฟาร์มหลัก
     FastAttack = true,              -- เปิดใช้งาน Fast Attack
     BringMob = true,                -- รวมมอนสเตอร์
+    AutoBuso = true,                -- เปิดฮาคิเกราะอัตโนมัติ
+    DistanceAboveMob = 6.5,         -- ระยะลอยยืนตรงเหนือหัวมอน
+
+    -- Item Tracker & ESP
+    FruitESP = true,                -- แสดงตำแหน่งผลไม้ปีศาจในแผนที่
+
+    -- Movement & Utility
+    Noclip = true,                  -- เดินทะลุสิ่งกีดขวาง
+    InfGeppo = true,                -- กระโดดกลางอากาศไม่จำกัด
+
+    -- Automation
     AutoStats = true,               -- อัปสเตตัสอัตโนมัติ
-    TargetStat = "Melee",           -- สายสเตตัสหลัก (Melee / Defense / Sword / Demon Fruit)
-    DistanceAboveMob = 6.5,         -- ระยะลอยเหนือหัวมอนสเตอร์
-    
+    TargetStat = "Melee",           -- สายสเตตัส (Melee / Defense / Sword / Demon Fruit)
+    AutoRollFruit = true,           -- สุ่มผลไม้อัตโนมัติเมื่อคูลดาวน์เสร็จ
+
     UI = {
         IconURL = "https://i.ibb.co/bgQ9GgKv/icon-SUKITHUB.jpg",
         IconFileName = "SUKIT_HUB_Icon_v2.jpg"
@@ -26,6 +38,7 @@ local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
 local CommF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
@@ -42,7 +55,7 @@ end
 AddLog("เริ่มต้นระบบ SUKIT HUB : NORMAL SCRIPT")
 
 -- =================================================================
--- 1. FAST ATTACK ENGINE (ตามโค้ดที่คุณส่งมา)
+-- 1. FAST ATTACK ENGINE (ตามโค้ดของคุณครบถ้วน)
 -- =================================================================
 spawn(function()
     game:GetService("RunService").RenderStepped:Connect(function()
@@ -71,30 +84,32 @@ spawn(function()
 end)
 
 -- =================================================================
--- 2. NOCLIP & AUTO EQUIP WEAPON (แก้ปัญหาตีไม่เข้า)
+-- 2. MOVEMENT & UTILITY (NOCLIP, INF GEPPO, AUTO BUSO)
 -- =================================================================
+-- Noclip System
 RunService.Stepped:Connect(function()
-    if LocalPlayer.Character then
+    if _G.Config.Noclip and LocalPlayer.Character then
         for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
             if part:IsA("BasePart") then part.CanCollide = false end
         end
     end
 end)
 
+-- Infinite Geppo System
+UserInputService.JumpRequest:Connect(function()
+    if _G.Config.InfGeppo and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
+-- Auto Equip Weapon
 local function EquipWeapon()
     local char = LocalPlayer.Character
     if not char then return end
-    
-    -- หากถืออาวุธอันใดอันหนึ่งอยู่แล้ว ให้ทำงานต่อได้เลย
     for _, tool in pairs(char:GetChildren()) do
-        if tool:IsA("Tool") then
-            return
-        end
+        if tool:IsA("Tool") then return end
     end
-    
-    -- ถ้าร่างกายยังไม่ได้ถืออาวุธ ให้ไปดึงอาวุธจาก Backpack มาถือทันที
-    local backpack = LocalPlayer.Backpack
-    for _, tool in pairs(backpack:GetChildren()) do
+    for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
         if tool:IsA("Tool") then
             char.Humanoid:EquipTool(tool)
             break
@@ -102,9 +117,18 @@ local function EquipWeapon()
     end
 end
 
--- =================================================================
--- 3. TWEEN & BRING MOB SYSTEM
--- =================================================================
+-- Auto Buso Haki
+task.spawn(function()
+    while task.wait(3) do
+        if _G.Config.AutoBuso and LocalPlayer.Character then
+            if not LocalPlayer.Character:FindFirstChild("HasBuso") then
+                CommF:InvokeServer("HasBuso")
+            end
+        end
+    end
+end)
+
+-- Tween Teleport Function
 local function SafeTween(targetCFrame, speed)
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
     local hrp = LocalPlayer.Character.HumanoidRootPart
@@ -124,6 +148,50 @@ local function SafeTween(targetCFrame, speed)
     bv:Destroy()
 end
 
+-- =================================================================
+-- 3. ITEM TRACKER & FRUIT ESP
+-- =================================================================
+task.spawn(function()
+    while task.wait(2) do
+        if _G.Config.FruitESP then
+            pcall(function()
+                for _, obj in pairs(Workspace:GetChildren()) do
+                    if obj:IsA("Tool") or obj.Name:find("Fruit") then
+                        if not obj:FindFirstChild("FruitHighlight") then
+                            local hl = Instance.new("Highlight")
+                            hl.Name = "FruitHighlight"
+                            hl.FillColor = Color3.fromRGB(255, 0, 100)
+                            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                            hl.Parent = obj
+                            
+                            local bg = Instance.new("BillboardGui")
+                            bg.Name = "FruitESP"
+                            bg.AlwaysOnTop = true
+                            bg.Size = UDim2.new(0, 100, 0, 30)
+                            bg.StudsOffset = Vector3.new(0, 3, 0)
+                            bg.Parent = obj
+                            
+                            local txt = Instance.new("TextLabel")
+                            txt.Parent = bg
+                            txt.Size = UDim2.new(1, 0, 1, 0)
+                            txt.BackgroundTransparency = 1
+                            txt.Text = "🍎 " .. obj.Name
+                            txt.TextColor3 = Color3.fromRGB(255, 220, 0)
+                            txt.TextSize = 13
+                            txt.Font = Enum.Font.SourceSansBold
+                            
+                            AddLog("พบผลไม้ปีศาจ: " .. obj.Name)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- =================================================================
+-- 4. COMBAT & BRING MOB ENGINE
+-- =================================================================
 local function BringMonstersToPoint(mobName, targetCFrame)
     if not _G.Config.BringMob then return end
     for _, mob in pairs(MobFolder:GetChildren()) do
@@ -140,9 +208,6 @@ local function BringMonstersToPoint(mobName, targetCFrame)
     end
 end
 
--- =================================================================
--- 4. QUEST & LEVEL DATA
--- =================================================================
 local function GetPlayerLevel()
     pcall(function() return LocalPlayer.Data.Level.Value end)
     return 1
@@ -156,43 +221,10 @@ local function GetQuestData()
     elseif lvl >= 60 and lvl < 90 then return {Mob = "Pirate", Quest = "BuggyQuest1", QuestID = 1, CFrame = CFrame.new(-1140, 15, 3800)}
     elseif lvl >= 90 and lvl < 120 then return {Mob = "Desert Bandit", Quest = "DesertQuest", QuestID = 1, CFrame = CFrame.new(895, 15, 4390)}
     elseif lvl >= 120 and lvl < 150 then return {Mob = "Snow Bandit", Quest = "SnowQuest", QuestID = 1, CFrame = CFrame.new(1280, 15, -1300)}
-    elseif lvl >= 150 and lvl < 190 then return {Mob = "Chief Pirate", Quest = "MarineQuest2", QuestID = 1, CFrame = CFrame.new(-5030, 20, 4320)}
-    elseif lvl >= 190 and lvl < 250 then return {Mob = "Sky Bandit", Quest = "SkyQuest", QuestID = 1, CFrame = CFrame.new(-4840, 715, -2620)}
-    elseif lvl >= 250 and lvl < 300 then return {Mob = "Prisoner", Quest = "PrisonerQuest", QuestID = 1, CFrame = CFrame.new(4870, 5, 735)}
-    elseif lvl >= 300 and lvl < 375 then return {Mob = "Toga Warrior", Quest = "ColosseumQuest", QuestID = 1, CFrame = CFrame.new(-1430, 8, -2760)}
-    elseif lvl >= 375 and lvl < 450 then return {Mob = "Military Soldier", Quest = "MagmaQuest", QuestID = 1, CFrame = CFrame.new(-5300, 12, 8500)}
-    elseif lvl >= 450 and lvl < 525 then return {Mob = "Fishman Warrior", Quest = "FishmanQuest", QuestID = 1, CFrame = CFrame.new(61100, 18, 1500)}
-    elseif lvl >= 525 and lvl < 625 then return {Mob = "God's Guard", Quest = "SkyExp1Quest", QuestID = 1, CFrame = CFrame.new(-7720, 5600, -1430)}
-    else return {Mob = "Galley Pirate", Quest = "FountainQuest", QuestID = 1, CFrame = CFrame.new(5560, 40, 4000)} end
+    else return {Mob = "Chief Pirate", Quest = "MarineQuest2", QuestID = 1, CFrame = CFrame.new(-5030, 20, 4320)} end
 end
 
--- Auto Stats System
-task.spawn(function()
-    while task.wait(2) do
-        if _G.Config.AutoStats then
-            pcall(function()
-                local points = LocalPlayer.Data.Points.Value
-                if points and points > 0 then
-                    CommF:InvokeServer("AddPoint", _G.Config.TargetStat, points)
-                end
-            end)
-        end
-    end
-end)
-
--- Shop Functions
-local Shop = {}
-function Shop:BuyBusoHaki() return CommF:InvokeServer("BuyHaki", "Buso") end
-function Shop:BuyGeppo() return CommF:InvokeServer("BuyHaki", "Geppo") end
-function Shop:BuyBlackLeg() return CommF:InvokeServer("BuyBlackLeg") end
-function Shop:BuyElectro() return CommF:InvokeServer("BuyElectro") end
-function Shop:BuyFishmanKarate() return CommF:InvokeServer("BuyFishmanKarate") end
-function Shop:RandomFruit() return CommF:InvokeServer("Cousin", "Buy") end
-_G.Shop = Shop
-
--- =================================================================
--- 5. MAIN FARM LOOP (NORMAL MODE)
--- =================================================================
+-- Main Auto Farm Loop
 task.spawn(function()
     while task.wait(0.1) do
         if _G.Config.MasterFarm then
@@ -200,12 +232,9 @@ task.spawn(function()
                 local player = LocalPlayer
                 if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character.Humanoid.Health > 0 then
                     
-                    -- ถืออาวุธอัตโนมัติเพื่อให้ Fast Attack ทำงาน
                     EquipWeapon()
-
                     local qData = GetQuestData()
                     
-                    -- เช็กว่ารับเควสต์แล้วหรือยัง
                     local hasQuest = false
                     pcall(function() hasQuest = player.PlayerGui.MainQuest.Visible end)
                     
@@ -214,7 +243,6 @@ task.spawn(function()
                         task.wait(0.5)
                     end
 
-                    -- ค้นหามอนสเตอร์
                     local targetMob = nil
                     for _, mob in pairs(MobFolder:GetChildren()) do
                         if mob:IsA("Model") and (mob.Name == qData.Mob or mob.Name:find(qData.Mob)) then
@@ -236,11 +264,8 @@ task.spawn(function()
                         while hum and hum.Health > 0 and _G.Config.MasterFarm and hrp do
                             task.wait(0.01)
                             EquipWeapon()
-                            
-                            -- ลอยเหนือหัวมอนสเตอร์แบบ "ยืนตรง" (เอา CFrame.Angles ออก)
+                            -- ลอยเหนือหัวแบบยืนตรง
                             player.Character.HumanoidRootPart.CFrame = hrp.CFrame * CFrame.new(0, _G.Config.DistanceAboveMob, 0)
-                            
-                            -- ดึงมอนสเตอร์มารวม
                             BringMonstersToPoint(qData.Mob, hrp.CFrame)
                         end
                     end
@@ -251,7 +276,50 @@ task.spawn(function()
 end)
 
 -- =================================================================
--- 6. UI DISPLAY
+-- 5. AUTOMATION (AUTO STATS & ROLL FRUIT)
+-- =================================================================
+-- Auto Assign Stats
+task.spawn(function()
+    while task.wait(2) do
+        if _G.Config.AutoStats then
+            pcall(function()
+                local points = LocalPlayer.Data.Points.Value
+                if points and points > 0 then
+                    CommF:InvokeServer("AddPoint", _G.Config.TargetStat, points)
+                end
+            end)
+        end
+    end
+end)
+
+-- Auto Roll & Store Fruit
+local lastRollTime = 0
+task.spawn(function()
+    while task.wait(5) do
+        if _G.Config.AutoRollFruit then
+            pcall(function()
+                local currentTime = os.time()
+                if currentTime - lastRollTime >= 7200 or lastRollTime == 0 then
+                    local res = CommF:InvokeServer("Cousin", "Buy")
+                    if res then
+                        lastRollTime = currentTime
+                        AddLog("🎉 สุ่มผลไม้อัตโนมัติเรียบร้อย!")
+                        task.wait(1)
+                        for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+                            if tool:IsA("Tool") and tool.Name:find("Fruit") then
+                                CommF:InvokeServer("StoreFruit", tool.Name, tool)
+                                AddLog("📦 เก็บ " .. tool.Name .. " เข้าคลังแล้ว")
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- =================================================================
+-- 6. FULL UI DISPLAY
 -- =================================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "SukitHubNormalGui"
@@ -263,6 +331,7 @@ elseif syn and syn.protect_gui then syn.protect_gui(ScreenGui); ScreenGui.Parent
 elseif CoreGui:FindFirstChild("RobloxGui") then ScreenGui.Parent = CoreGui
 else ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
+-- Floating Toggle Icon
 local ToggleIcon = Instance.new("ImageButton")
 ToggleIcon.Parent = ScreenGui
 ToggleIcon.Size = UDim2.new(0, 60, 0, 60)
@@ -274,7 +343,7 @@ Instance.new("UICorner", ToggleIcon).CornerRadius = UDim.new(1, 0)
 
 local IconStroke = Instance.new("UIStroke")
 IconStroke.Thickness = 2.5
-IconStroke.Color = Color3.fromRGB(0, 255, 150)
+IconStroke.Color = Color3.fromRGB(0, 200, 255)
 IconStroke.Parent = ToggleIcon
 
 task.spawn(function()
@@ -288,10 +357,11 @@ task.spawn(function()
     end)
 end)
 
+-- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Parent = ScreenGui
-MainFrame.Size = UDim2.new(0, 340, 0, 320)
-MainFrame.Position = UDim2.new(0.5, -170, 0.5, -160)
+MainFrame.Size = UDim2.new(0, 360, 0, 340)
+MainFrame.Position = UDim2.new(0.5, -180, 0.5, -170)
 MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -299,23 +369,82 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
 
 local MainStroke = Instance.new("UIStroke")
 MainStroke.Thickness = 2
-MainStroke.Color = Color3.fromRGB(0, 255, 150)
+MainStroke.Color = Color3.fromRGB(0, 200, 255)
 MainStroke.Parent = MainFrame
 
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Parent = MainFrame
-TitleLabel.Size = UDim2.new(1, 0, 0, 40)
+TitleLabel.Size = UDim2.new(1, 0, 0, 45)
 TitleLabel.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-TitleLabel.Text = "SUKIT HUB : NORMAL SCRIPT"
-TitleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
-TitleLabel.TextSize = 14
+TitleLabel.Text = "SUKIT HUB : GENERAL SCRIPT"
+TitleLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+TitleLabel.TextSize = 15
 TitleLabel.Font = Enum.Font.SourceSansBold
 Instance.new("UICorner", TitleLabel).CornerRadius = UDim.new(0, 12)
 
+-- Control Buttons Frame
+local ControlsFrame = Instance.new("Frame")
+ControlsFrame.Parent = MainFrame
+ControlsFrame.Size = UDim2.new(1, -20, 0, 120)
+ControlsFrame.Position = UDim2.new(0, 10, 0, 50)
+ControlsFrame.BackgroundTransparency = 1
+
+local function CreateToggleBtn(parent, text, pos, defaultConfig, callback)
+    local btn = Instance.new("TextButton")
+    btn.Parent = parent
+    btn.Size = UDim2.new(0.48, 0, 0, 32)
+    btn.Position = pos
+    btn.BackgroundColor3 = defaultConfig and Color3.fromRGB(0, 150, 100) or Color3.fromRGB(40, 40, 40)
+    btn.Text = text .. (defaultConfig and ": ON" or ": OFF")
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 12
+    btn.Font = Enum.Font.SourceSansBold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    btn.MouseButton1Click:Connect(function()
+        local state = callback()
+        btn.BackgroundColor3 = state and Color3.fromRGB(0, 150, 100) or Color3.fromRGB(40, 40, 40)
+        btn.Text = text .. (state and ": ON" or ": OFF")
+    end)
+    return btn
+end
+
+CreateToggleBtn(ControlsFrame, "Auto Farm", UDim2.new(0, 0, 0, 0), _G.Config.MasterFarm, function()
+    _G.Config.MasterFarm = not _G.Config.MasterFarm
+    return _G.Config.MasterFarm
+end)
+
+CreateToggleBtn(ControlsFrame, "Fast Attack", UDim2.new(0.52, 0, 0, 0), _G.Config.FastAttack, function()
+    _G.Config.FastAttack = not _G.Config.FastAttack
+    _G.FastAttack = _G.Config.FastAttack
+    return _G.Config.FastAttack
+end)
+
+CreateToggleBtn(ControlsFrame, "Bring Mob", UDim2.new(0, 0, 0, 38), _G.Config.BringMob, function()
+    _G.Config.BringMob = not _G.Config.BringMob
+    return _G.Config.BringMob
+end)
+
+CreateToggleBtn(ControlsFrame, "Fruit ESP", UDim2.new(0.52, 0, 0, 38), _G.Config.FruitESP, function()
+    _G.Config.FruitESP = not _G.Config.FruitESP
+    return _G.Config.FruitESP
+end)
+
+CreateToggleBtn(ControlsFrame, "Auto Stats", UDim2.new(0, 0, 0, 76), _G.Config.AutoStats, function()
+    _G.Config.AutoStats = not _G.Config.AutoStats
+    return _G.Config.AutoStats
+end)
+
+CreateToggleBtn(ControlsFrame, "Inf Geppo", UDim2.new(0.52, 0, 0, 76), _G.Config.InfGeppo, function()
+    _G.Config.InfGeppo = not _G.Config.InfGeppo
+    return _G.Config.InfGeppo
+end)
+
+-- Log Window
 local LogBox = Instance.new("ScrollingFrame")
 LogBox.Parent = MainFrame
-LogBox.Size = UDim2.new(1, -20, 1, -60)
-LogBox.Position = UDim2.new(0, 10, 0, 50)
+LogBox.Size = UDim2.new(1, -20, 0, 140)
+LogBox.Position = UDim2.new(0, 10, 0, 180)
 LogBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 LogBox.CanvasSize = UDim2.new(0, 0, 0, 0)
 LogBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -336,7 +465,7 @@ task.spawn(function()
             lbl.Size = UDim2.new(1, -10, 0, 18)
             lbl.BackgroundTransparency = 1
             lbl.Text = txt
-            lbl.TextColor3 = Color3.fromRGB(180, 255, 200)
+            lbl.TextColor3 = Color3.fromRGB(180, 240, 255)
             lbl.TextSize = 11
             lbl.Font = Enum.Font.SourceSans
             lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -348,4 +477,4 @@ ToggleIcon.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
 end)
 
-print("[SUKIT HUB] Normal Script พร้อมใช้งานแล้ว!")
+print("[SUKIT HUB] General Script พร้อมใช้งาน!")
