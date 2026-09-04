@@ -1,307 +1,51 @@
 -- =================================================================
--- SUKIT HUB : MASTER KAITUN SCRIPT (LEVEL 1-700 COMPLETE)
+-- SUKIT HUB : MAIN LOADER SCRIPT (ตัวเลือกโหมดสคริปต์หลัก)
 -- =================================================================
 
-getgenv().Script_Mode = "Kaitun_Script"
-
-_G.Config = {
-    ScriptMode = getgenv().Script_Mode,
-    MasterKaitun = true,            -- เปิดระบบไก่ตันอัตโนมัติ
-    FastAttack = true,              -- เปิดโจมตีเร็ว
-    BringMob = true,                -- รวมมอนสเตอร์
-    AutoStats = true,               -- อัปสเตตัสอัตโนมัติ
-    TargetStat = "Melee",           -- สายสเตตัสหลัก (Melee / Defense / Sword)
-    AutoSaber = true,               -- ตีบอสเอาดาบเซเบอร์เมื่อเวล 200
-    AutoRollFruit = true,           -- สุ่มผลไม้อัตโนมัติเมื่อเวล 50+
-    DistanceAboveMob = 6.5,         -- ระยะลอยเหนือหัวมอนสเตอร์
+-- ฟังก์ชันสำหรับเรียกโหลดสคริปต์ปลายทาง
+local function LoadTargetScript(mode)
+    getgenv().Script_Mode = mode
     
-    UI = {
-        IconURL = "https://i.ibb.co/bgQ9GgKv/icon-SUKITHUB.jpg",
-        IconFileName = "SUKIT_HUB_Icon_v2.jpg"
-    }
-}
+    if mode == "Kaitun_Script" then
+        print("[SUKIT HUB] กำลังโหลด : Kaitun Script...")
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/sukit2775/rejoin-hud/refs/heads/main/Kaitun_Script"))()
+    elseif mode == "Normal_Script" then
+        print("[SUKIT HUB] กำลังโหลด : Normal Script...")
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/sukit2775/rejoin-hud/refs/heads/main/Normal_Script"))()
+    end
+end
 
--- Global Variables & Services
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
+-- -----------------------------------------------------------------
+-- 1. เช็กระบบอัตโนมัติ (หากมีการตั้งค่า getgenv().Script_Mode ไว้ก่อนแล้ว)
+-- -----------------------------------------------------------------
+if getgenv().Script_Mode == "Kaitun_Script" or getgenv().Script_Mode == "Normal_Script" then
+    LoadTargetScript(getgenv().Script_Mode)
+    return
+end
+
+-- -----------------------------------------------------------------
+-- 2. สร้าง UI เมนูเลือกโหมด (กรณีที่ยังไม่ได้กำหนด Script_Mode)
+-- -----------------------------------------------------------------
 local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualUser = game:GetService("VirtualUser")
+local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-local CommF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
-local MobFolder = Workspace:FindFirstChild("Enemies") or Workspace:FindFirstChild("Mobs") or Workspace
-
-local ActionLogs = {}
-local function AddLog(msg)
-    local timestamp = os.date("%X")
-    local formattedMsg = "[" .. timestamp .. "] " .. msg
-    table.insert(ActionLogs, 1, formattedMsg)
-    if #ActionLogs > 15 then table.remove(ActionLogs) end
-end
-
-AddLog("เริ่มต้นระบบ SUKIT HUB KAITUN (1-700)...")
-
--- =================================================================
--- 1. FAST ATTACK & NOCLIP ENGINE
--- =================================================================
-RunService.Stepped:Connect(function()
-    if _G.Config.MasterKaitun and LocalPlayer.Character then
-        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
-        end
-    end
-end)
-
-task.spawn(function()
-    RunService.RenderStepped:Connect(function()
-        pcall(function()
-            if _G.Config.FastAttack then
-                local playerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
-                if playerScripts and playerScripts:FindFirstChild("CombatFramework") then
-                    local combatModule = playerScripts.CombatFramework
-                    local Combat = require(combatModule)
-                    
-                    if combatModule:FindFirstChild("CameraShaker") then
-                        local CameraShaker = require(combatModule.CameraShaker)
-                        if CameraShaker and CameraShaker.CameraShakeInstance then
-                            CameraShaker.CameraShakeInstance.CameraShakeState = {
-                                FadingIn = 3, FadingOut = 2, Sustained = 0, Inactive = 1
-                            }
-                        end
-                    end
-
-                    if Combat and Combat.activeController then
-                        Combat.activeController.timeToNextAttack = 0
-                        Combat.activeController.hitboxMagnitude = 120
-                        Combat.activeController.increment = 3
-                    end
-                end
-            end
-        end)
-    end)
-end)
-
--- =================================================================
--- 2. TWEEN & BRING MOB SYSTEM
--- =================================================================
-local function SafeTween(targetCFrame, speed)
-    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
-    local hrp = LocalPlayer.Character.HumanoidRootPart
-    local distance = (hrp.Position - targetCFrame.Position).Magnitude
-    local duration = distance / (speed or 250)
-    
-    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
-    
-    local bv = Instance.new("BodyVelocity")
-    bv.Velocity = Vector3.new(0, 0, 0)
-    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    bv.Parent = hrp
-    
-    tween:Play()
-    tween.Completed:Wait()
-    bv:Destroy()
-end
-
-local function BringMonstersToPoint(mobName, targetCFrame)
-    if not _G.Config.BringMob then return end
-    for _, mob in pairs(MobFolder:GetChildren()) do
-        if mob:IsA("Model") and (mob.Name == mobName or mob.Name:find(mobName)) then
-            local hrp = mob:FindFirstChild("HumanoidRootPart")
-            local hum = mob:FindFirstChild("Humanoid")
-            if hrp and hum and hum.Health > 0 then
-                if (hrp.Position - targetCFrame.Position).Magnitude < 180 then
-                    hrp.CanCollide = false
-                    hrp.CFrame = targetCFrame
-                end
-            end
-        end
-    end
-end
-
--- =================================================================
--- 3. LEVEL 1 - 700 QUEST & MOB DATA
--- =================================================================
-local function GetPlayerLevel()
-    pcall(function()
-        return LocalPlayer.Data.Level.Value
-    end)
-    return 1
-end
-
-local function GetQuestData()
-    local lvl = GetPlayerLevel()
-    
-    if lvl >= 1 and lvl < 15 then
-        return {Mob = "Bandit", Quest = "BanditQuest1", QuestID = 1, CFrame = CFrame.new(1050, 15, -1200)}
-    elseif lvl >= 15 and lvl < 30 then
-        return {Mob = "Monkey", Quest = "JungleQuest", QuestID = 1, CFrame = CFrame.new(-1500, 20, 300)}
-    elseif lvl >= 30 and lvl < 60 then
-        return {Mob = "Gorilla", Quest = "JungleQuest", QuestID = 2, CFrame = CFrame.new(-1240, 15, -500)}
-    elseif lvl >= 60 and lvl < 90 then
-        return {Mob = "Pirate", Quest = "BuggyQuest1", QuestID = 1, CFrame = CFrame.new(-1140, 15, 3800)}
-    elseif lvl >= 90 and lvl < 120 then
-        return {Mob = "Desert Bandit", Quest = "DesertQuest", QuestID = 1, CFrame = CFrame.new(895, 15, 4390)}
-    elseif lvl >= 120 and lvl < 150 then
-        return {Mob = "Snow Bandit", Quest = "SnowQuest", QuestID = 1, CFrame = CFrame.new(1280, 15, -1300)}
-    elseif lvl >= 150 and lvl < 190 then
-        return {Mob = "Chief Pirate", Quest = "MarineQuest2", QuestID = 1, CFrame = CFrame.new(-5030, 20, 4320)}
-    elseif lvl >= 190 and lvl < 250 then
-        return {Mob = "Sky Bandit", Quest = "SkyQuest", QuestID = 1, CFrame = CFrame.new(-4840, 715, -2620)}
-    elseif lvl >= 250 and lvl < 300 then
-        return {Mob = "Prisoner", Quest = "PrisonerQuest", QuestID = 1, CFrame = CFrame.new(4870, 5, 735)}
-    elseif lvl >= 300 and lvl < 375 then
-        return {Mob = "Toga Warrior", Quest = "ColosseumQuest", QuestID = 1, CFrame = CFrame.new(-1430, 8, -2760)}
-    elseif lvl >= 375 and lvl < 450 then
-        return {Mob = "Military Soldier", Quest = "MagmaQuest", QuestID = 1, CFrame = CFrame.new(-5300, 12, 8500)}
-    elseif lvl >= 450 and lvl < 525 then
-        return {Mob = "Fishman Warrior", Quest = "FishmanQuest", QuestID = 1, CFrame = CFrame.new(61100, 18, 1500)}
-    elseif lvl >= 525 and lvl < 625 then
-        return {Mob = "God's Guard", Quest = "SkyExp1Quest", QuestID = 1, CFrame = CFrame.new(-7720, 5600, -1430)}
-    elseif lvl >= 625 and lvl <= 700 then
-        return {Mob = "Galley Pirate", Quest = "FountainQuest", QuestID = 1, CFrame = CFrame.new(5560, 40, 4000)}
-    end
-    return {Mob = "Galley Pirate", Quest = "FountainQuest", QuestID = 1, CFrame = CFrame.new(5560, 40, 4000)}
-end
-
--- =================================================================
--- 4. LEVEL 50+ AUTO RANDOM FRUIT & RE-ROLL TIMER
--- =================================================================
-local lastFruitRollTime = 0
-
-task.spawn(function()
-    while task.wait(5) do
-        if _G.Config.MasterKaitun and _G.Config.AutoRollFruit then
-            pcall(function()
-                local lvl = GetPlayerLevel()
-                local currentTime = os.time()
-                
-                -- เช็กเงื่อนไข: เลเวล >= 50 และคูลดาวน์ครบ 2 ชั่วโมง (7200 วินาที)
-                if lvl >= 50 and (currentTime - lastFruitRollTime >= 7200 or lastFruitRollTime == 0) then
-                    AddLog("🍓 กำลังสุ่มผลไม้ (Level " .. lvl .. "+)...")
-                    local result = CommF:InvokeServer("Cousin", "Buy")
-                    
-                    if result then
-                        lastFruitRollTime = currentTime
-                        AddLog("🎉 สุ่มผลไม้สำเร็จ!")
-                        
-                        -- จัดเก็บผลไม้ลงคลังอัตโนมัติ
-                        task.wait(1)
-                        for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
-                            if tool:IsA("Tool") and tool.Name:find("Fruit") then
-                                CommF:InvokeServer("StoreFruit", tool.Name, tool)
-                                AddLog("📦 เก็บผลไม้ " .. tool.Name .. " เข้าคลังแล้ว")
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end)
-
--- =================================================================
--- 5. LEVEL 200+ AUTO SABER SWORD FARM SYSTEM
--- =================================================================
-local function HasSaberSword()
-    for _, item in pairs(LocalPlayer.Backpack:GetChildren()) do
-        if item.Name == "Saber" then return true end
-    end
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Saber") then
-        return true
-    end
-    return false
-end
-
-local function FarmSaberBoss()
-    if HasSaberSword() then return false end
-    
-    local saberBoss = MobFolder:FindFirstChild("Saber Expert") or Workspace:FindFirstChild("Saber Expert")
-    if saberBoss and saberBoss:FindFirstChild("Humanoid") and saberBoss.Humanoid.Health > 0 then
-        AddLog("⚔️ พบบอส Saber Expert! กำลังสู้เอาดาบเซเบอร์...")
-        local hrp = saberBoss:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            while saberBoss.Humanoid.Health > 0 and not HasSaberSword() do
-                task.wait(0.01)
-                LocalPlayer.Character.HumanoidRootPart.CFrame = hrp.CFrame * CFrame.new(0, _G.Config.DistanceAboveMob, 0)
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton1(Vector2.new(500, 500))
-            end
-            AddLog("🎉 กำจัดบอสสำเร็จ! ได้รับดาบ Saber")
-            return true
-        end
-    else
-        AddLog("⏳ กำลังรอ บอส Saber Expert เกิด...")
-        SafeTween(CFrame.new(-1460, 30, -320)) -- จุดเกิดบอสเซเบอร์
-    end
-    return true
-end
-
--- =================================================================
--- 6. AUTO STATS ALLOCATOR
--- =================================================================
-task.spawn(function()
-    while task.wait(2) do
-        if _G.Config.MasterKaitun and _G.Config.AutoStats then
-            pcall(function()
-                local points = LocalPlayer.Data.Points.Value
-                if points and points > 0 then
-                    CommF:InvokeServer("AddPoint", _G.Config.TargetStat, points)
-                end
-            end)
-        end
-    end
-end)
-
--- =================================================================
--- 7. KAITUN UI DISPLAY (SUKIT HUB THEME)
--- =================================================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SukitHubKaitunCompleteGui"
+ScreenGui.Name = "SukitHubLoaderGui"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 9999
+ScreenGui.DisplayOrder = 99999
 
 if gethui then ScreenGui.Parent = gethui()
 elseif syn and syn.protect_gui then syn.protect_gui(ScreenGui); ScreenGui.Parent = CoreGui
 elseif CoreGui:FindFirstChild("RobloxGui") then ScreenGui.Parent = CoreGui
 else ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
-local ToggleIcon = Instance.new("ImageButton")
-ToggleIcon.Name = "ToggleIcon"
-ToggleIcon.Parent = ScreenGui
-ToggleIcon.Size = UDim2.new(0, 60, 0, 60)
-ToggleIcon.Position = UDim2.new(0.04, 0, 0.2, 0)
-ToggleIcon.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-ToggleIcon.Active = true
-ToggleIcon.Draggable = true
-Instance.new("UICorner", ToggleIcon).CornerRadius = UDim.new(1, 0)
-
-local IconStroke = Instance.new("UIStroke")
-IconStroke.Thickness = 2.5
-IconStroke.Color = Color3.fromRGB(0, 255, 150)
-IconStroke.Parent = ToggleIcon
-
-task.spawn(function()
-    pcall(function()
-        local url = _G.Config.UI.IconURL
-        local file = _G.Config.UI.IconFileName
-        if writefile and getcustomasset then
-            if not isfile(file) then writefile(file, game:HttpGet(url)) end
-            ToggleIcon.Image = getcustomasset(file)
-        else ToggleIcon.Image = url end
-    end)
-end)
-
+-- Frame หลัก
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Parent = ScreenGui
-MainFrame.Size = UDim2.new(0, 340, 0, 320)
-MainFrame.Position = UDim2.new(0.5, -170, 0.5, -160)
+MainFrame.Size = UDim2.new(0, 320, 0, 220)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -110)
 MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -312,123 +56,59 @@ MainStroke.Thickness = 2
 MainStroke.Color = Color3.fromRGB(0, 255, 150)
 MainStroke.Parent = MainFrame
 
+-- หัวข้อ UI
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Parent = MainFrame
-TitleLabel.Size = UDim2.new(1, 0, 0, 40)
+TitleLabel.Size = UDim2.new(1, 0, 0, 45)
 TitleLabel.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-TitleLabel.Text = "SUKIT HUB : AUTO KAITUN (1-700)"
+TitleLabel.Text = "SUKIT HUB : SELECT MODE"
 TitleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
-TitleLabel.TextSize = 14
+TitleLabel.TextSize = 16
 TitleLabel.Font = Enum.Font.SourceSansBold
 Instance.new("UICorner", TitleLabel).CornerRadius = UDim.new(0, 12)
 
-local LogBox = Instance.new("ScrollingFrame")
-LogBox.Parent = MainFrame
-LogBox.Size = UDim2.new(1, -20, 1, -60)
-LogBox.Position = UDim2.new(0, 10, 0, 50)
-LogBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-LogBox.CanvasSize = UDim2.new(0, 0, 0, 0)
-LogBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
-Instance.new("UICorner", LogBox).CornerRadius = UDim.new(0, 8)
+-- ปุ่มเลือก Normal Script
+local NormalBtn = Instance.new("TextButton")
+NormalBtn.Parent = MainFrame
+NormalBtn.Size = UDim2.new(0.85, 0, 0, 50)
+NormalBtn.Position = UDim2.new(0.075, 0, 0.3, 0)
+NormalBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+NormalBtn.Text = "NORMAL SCRIPT (ฟาร์มปกติ)"
+NormalBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+NormalBtn.TextSize = 14
+NormalBtn.Font = Enum.Font.SourceSansBold
+Instance.new("UICorner", NormalBtn).CornerRadius = UDim.new(0, 8)
 
-local LogLayout = Instance.new("UIListLayout")
-LogLayout.Parent = LogBox
-LogLayout.Padding = UDim.new(0, 3)
+local NormalStroke = Instance.new("UIStroke")
+NormalStroke.Thickness = 1.5
+NormalStroke.Color = Color3.fromRGB(0, 200, 255)
+NormalStroke.Parent = NormalBtn
 
-local function UpdateLogDisplay()
-    for _, child in pairs(LogBox:GetChildren()) do
-        if child:IsA("TextLabel") then child:Destroy() end
-    end
-    for _, txt in ipairs(ActionLogs) do
-        local lbl = Instance.new("TextLabel")
-        lbl.Parent = LogBox
-        lbl.Size = UDim2.new(1, -10, 0, 18)
-        lbl.BackgroundTransparency = 1
-        lbl.Text = txt
-        lbl.TextColor3 = Color3.fromRGB(180, 255, 200)
-        lbl.TextSize = 11
-        lbl.Font = Enum.Font.SourceSans
-        lbl.TextXAlignment = Enum.TextXAlignment.Left
-    end
-end
+-- ปุ่มเลือก Kaitun Script
+local KaitunBtn = Instance.new("TextButton")
+KaitunBtn.Parent = MainFrame
+KaitunBtn.Size = UDim2.new(0.85, 0, 0, 50)
+KaitunBtn.Position = UDim2.new(0.075, 0, 0.62, 0)
+KaitunBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+KaitunBtn.Text = "KAITUN SCRIPT (ไก่ตัน 1-700)"
+KaitunBtn.TextColor3 = Color3.fromRGB(0, 255, 150)
+KaitunBtn.TextSize = 14
+KaitunBtn.Font = Enum.Font.SourceSansBold
+Instance.new("UICorner", KaitunBtn).CornerRadius = UDim.new(0, 8)
 
-task.spawn(function()
-    while task.wait(0.5) do UpdateLogDisplay() end
+local KaitunStroke = Instance.new("UIStroke")
+KaitunStroke.Thickness = 1.5
+KaitunStroke.Color = Color3.fromRGB(0, 255, 150)
+KaitunStroke.Parent = KaitunBtn
+
+-- Event เมื่อกดปุ่ม Normal
+NormalBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+    LoadTargetScript("Normal_Script")
 end)
 
-ToggleIcon.MouseButton1Click:Connect(function()
-    MainFrame.Visible = not MainFrame.Visible
+-- Event เมื่อกดปุ่ม Kaitun
+KaitunBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+    LoadTargetScript("Kaitun_Script")
 end)
-
--- =================================================================
--- 8. MAIN KAITUN AUTO LOOP (1-700 CORE LOGIC)
--- =================================================================
-task.spawn(function()
-    local lastLvl = 0
-
-    while task.wait(0.1) do
-        if _G.Config.MasterKaitun then
-            pcall(function()
-                local player = LocalPlayer
-                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character.Humanoid.Health > 0 then
-                    
-                    local currentLvl = GetPlayerLevel()
-                    if lastLvl ~= 0 and currentLvl > lastLvl then
-                        AddLog("🎉 เลเวลอัปเป็น: " .. currentLvl)
-                    end
-                    lastLvl = currentLvl
-
-                    -- ตรวจสอบเงื่อนไขเอาดาบเซเบอร์เมื่อเวล 200+
-                    if currentLvl >= 200 and _G.Config.AutoSaber and not HasSaberSword() then
-                        FarmSaberBoss()
-                        return
-                    end
-
-                    -- ดึงข้อมูลเควสต์ 1-700
-                    local qData = GetQuestData()
-                    
-                    -- ตรวจสอบรับเควสต์
-                    local hasQuest = false
-                    pcall(function() hasQuest = player.PlayerGui.MainQuest.Visible end)
-                    
-                    if not hasQuest then
-                        CommF:InvokeServer("StartQuest", qData.Quest, qData.QuestID)
-                        task.wait(0.5)
-                    end
-
-                    -- ค้นหามอนสเตอร์เป้าหมาย
-                    local targetMob = nil
-                    for _, mob in pairs(MobFolder:GetChildren()) do
-                        if mob:IsA("Model") and (mob.Name == qData.Mob or mob.Name:find(qData.Mob)) then
-                            local hum = mob:FindFirstChild("Humanoid")
-                            local hrp = mob:FindFirstChild("HumanoidRootPart")
-                            if hum and hrp and hum.Health > 0 then
-                                targetMob = mob
-                                break
-                            end
-                        end
-                    end
-
-                    -- การเข้าตีมอนสเตอร์
-                    if not targetMob then
-                        SafeTween(qData.CFrame)
-                    else
-                        local hum = targetMob:FindFirstChild("Humanoid")
-                        local hrp = targetMob:FindFirstChild("HumanoidRootPart")
-                        
-                        while hum and hum.Health > 0 and _G.Config.MasterKaitun and hrp do
-                            task.wait(0.01)
-                            player.Character.HumanoidRootPart.CFrame = hrp.CFrame * CFrame.new(0, _G.Config.DistanceAboveMob, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-                            BringMonstersToPoint(qData.Mob, hrp.CFrame)
-                            
-                            VirtualUser:CaptureController()
-                            VirtualUser:ClickButton1(Vector2.new(500, 500))
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end)
-
-print("[SUKIT HUB] ระบบไก่ตันฉบับสมบูรณ์ (Level 1-700) พร้อมใช้งานแล้ว!")
