@@ -2086,24 +2086,322 @@ while true do
     end)
 
 
--- Resume farming on death/respawn
-do
-    local function onCharacter(char)
-        local humanoid = char:WaitForChild("Humanoid")
+-- Death Detection Function (ย้ายมาไว้ด้านบนก่อนเรียกใช้)
+local function setupDeathDetection(humanoid)
+    if humanoid then
         humanoid.Died:Connect(function()
-            print("[INFO] Character died, will resume farming after respawn.")
-            -- Delay to allow respawn
-            wait(5)
-            -- Re-initialize player and character variables if needed
-            player = game.Players.LocalPlayer
-            -- Resume farming logic (e.g., start auto-farming or tweenTo last target)
-            if typeof(startFarming) == "function" then
-                startFarming()
-            elseif typeof(autoFarm) == "function" then
-                autoFarm()
-            end
+            autoRespawn()
         end)
     end
+end
+
+-- Auto respawn function
+function autoRespawn()
+    if isDead then return end
+    isDead = true
+    local deathTime = os.time()
+
+    print("⛔ Karakter mati, memulai proses respawn...")
+
+    local waitTime = respawnCooldown - (os.time() - deathTime)
+    if waitTime > 0 then
+        print("🕒 Menunggu "..waitTime.." detik sebelum respawn...")
+        task.wait(waitTime)
+    end
+
+    pcall(function()
+        ReplicatedStorage.Remotes.CommF_:InvokeServer("SetSpawnPoint")
+        player:LoadCharacter()
+    end)
+
+    repeat
+        task.wait(0.01)
+        local char = player.Character
+        hrp = char and char:FindFirstChild("HumanoidRootPart")
+    until hrp
+
+    print("✅ Karakter berhasil direspawn")
+
+    local char = player.Character
+    local humanoid = char:WaitForChild("Humanoid")
+    isDead = false
+
+    setupDeathDetection(humanoid)
+    task.wait(1)
+    equipBestFightingStyle()
+    activateBuso()
+end
+
+player.CharacterAdded:Connect(function(char)
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local humanoid = char:WaitForChild("Humanoid")
+    isDead = false
+
+    setupDeathDetection(humanoid)
+end)
+
+-- Recovery system
+local function recoverySystem()
+    while true do
+        task.wait(2)
+        if not character or not character.Parent or not character:FindFirstChild("HumanoidRootPart") then
+            print("⚠️ Sistem recovery: Karakter tidak valid, memuat ulang...")
+            player:LoadCharacter()
+            character = player.Character or player.CharacterAdded:Wait()
+            hrp = character:WaitForChild("HumanoidRootPart")
+        end
+        
+        if character:FindFirstChild("Humanoid") and character.Humanoid.Health <= 0 and not isDead then
+            print("⚠️ Sistem recovery: Terdeteksi karakter mati tapi tidak terdeteksi oleh sistem")
+            autoRespawn()
+        end
+    end
+end
+
+task.spawn(recoverySystem)
+
+-- Main game loop
+while true do
+    local success, err = pcall(function()
+        if isDead or (character and character.Humanoid and character.Humanoid.Health <= 0) then
+            task.wait(0.01)
+        else
+            local level = player:WaitForChild("Data"):WaitForChild("Level").Value       
+        
+            if level >= 1100 and (isSecondSea or isThirdSea) and (tick() - lastRaidTime > 300) then
+                lastRaidTime = tick()
+                if not memilikiItem("Flame") then
+                    pcall(function()
+                        ReplicatedStorage.Remotes.CommF_:InvokeServer("RaidsNpc", "Buy", "Flame")
+                    end)
+                end
+                autoRaid()
+            end
+               
+            if isFirstSea then
+                if level < 10 then
+                    ambilQuestBandit()
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Bandit")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 10 and level < 15 then
+                    ambilQuestAdventurer(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Monkey")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 15 and level < 30 then
+                    ambilQuestAdventurer(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Gorilla") or cariMusuh("The Gorilla King")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 30 and level < 40 then
+                    ambilQuestPirate(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Pirate")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 40 and level < 60 then
+                    ambilQuestPirate(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Brute") or cariMusuh("Chef")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 60 and level < 75 then
+                    ambilQuestDesert(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Desert Bandit")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 75 and level < 90 then
+                    ambilQuestDesert(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Desert Officer")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 90 and level < 100 then
+                    ambilQuestVillager(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Snow Bandit")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 100 and level < 120 then
+                    ambilQuestVillager(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Snowman") or cariMusuh("Yeti")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 120 and level < 150 then
+                    ambilQuestMarine(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Chief Petty Officer") or cariMusuh("Vice Admiral")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 150 and level < 175 then
+                    ambilQuestSkyAdventurer(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Sky Bandit")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 175 and level < 190 then
+                    ambilQuestSkyAdventurer(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Dark Master")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 190 and level < 210 then
+                    ambilQuestJailKeeper(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Prisoner")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 210 and level < 250 then
+                    ambilQuestJailKeeper(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Dangerous Prisoner")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 250 and level < 300 then
+                    ambilQuestColosseum(1)
+                    local idx = 1
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Toga Warrior")
+                        if not enemy then
+                            idx = idx % #questSpawns["Toga Warrior"] + 1
+                            tweenTo(questSpawns["Toga Warrior"][idx])
+                            task.wait(0.5)
+                        else
+                            serangMusuh(enemy)
+                        end
+                        task.wait(0.1)
+                    end
+
+                    ambilQuestColosseum(2)
+                    idx = 1
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Gladiator")
+                        if not enemy then
+                            idx = idx % #questSpawns["Gladiator"] + 1
+                            tweenTo(questSpawns["Gladiator"][idx])
+                            task.wait(0.5)
+                        else
+                            serangMusuh(enemy)
+                        end
+                        task.wait(0.1)
+                    end
+                elseif level >= 300 and level < 325 then
+                    ambilQuestTheMayor(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Military Soldier")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 325 and level < 375 then
+                    ambilQuestTheMayor(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Military Spy") or cariMusuh("Magma Admiral")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 375 and level < 400 then
+                    ambilQuestKingNeptune(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Fishman Warrior")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 400 and level < 450 then
+                    ambilQuestKingNeptune(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Fishman Commando") or cariMusuh("Fisman Lord")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 450 and level < 475 then
+                    ambilQuestMole(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("God's Guard")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 475 and level < 525 then
+                    ambilQuestMole(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Shanda") or cariMusuh("Wysper")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 525 and level < 550 then
+                    ambilQuestSky2(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Royal Squad")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 550 and level < 625 then
+                    ambilQuestSky2(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Royal Soldier") or cariMusuh("Thunder God")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 625 and level < 650 then
+                    ambilQuestFreezeburg(1)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Galley Pirate")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 650 and level < 700 then
+                    ambilQuestFreezeburg(2)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Galley Captain") or cariMusuh("Cyborg")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                elseif level >= 700 and not sudahUnlockSea2 then
+                    print("Starting Sea 2 unlock process...")
+                    local detektifCFrame = CFrame.new(4853.36182, 4.3500061, 717.710999)
+                    tweenTo(detektifCFrame)
+                    task.wait(2)
+                    
+                    ReplicatedStorage.Remotes.CommF_:InvokeServer("DressrosaQuestProgress","Detective")
+                    task.wait(1)
+                    
+                    local iceAdmiralCFrame = CFrame.new(1344.547, 42.253006, -1327.88904)
+                    tweenTo(iceAdmiralCFrame)
+                    task.wait(1)
+                    
+                    local iceAdmiral = cariMusuh("Ice Admiral")
+                    if iceAdmiral then
+                        serangMusuh(iceAdmiral)
+                    end
+                end
+            end
+        end
+    end)
+
+    if not success then
+        warn("[ERROR Main Loop]:", err)
+    end
+    task.wait(0.1)
+end
 
     local lp = game.Players.LocalPlayer
     if lp.Character then
