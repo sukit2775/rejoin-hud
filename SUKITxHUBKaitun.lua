@@ -25,6 +25,116 @@ end
 -- Ganti semua panggilan tweenTo menjadi bypassTween
 local RunService = game:GetService("RunService")
 local PlayerGui = player:WaitForChild("PlayerGui")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+
+local function getOnlineImage(url, fileName)
+    fileName = fileName or "temp_logo.png"
+    if not isfile(fileName) then
+        local success, result = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if success then
+            writefile(fileName, result)
+        else
+            return ""
+        end
+    end
+    local getasset = getcustomasset or getsynasset
+    return getasset and getasset(fileName) or ""
+end
+
+-- 1. สร้างหน้าจอหลักสำหรับ GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "SukiHubGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = PlayerGui
+
+-- 2. สร้างปุ่มโลโก้สำหรับกดเปิด/ปิด
+local toggleButton = Instance.new("ImageButton")
+toggleButton.Name = "ToggleLogo"
+toggleButton.Size = UDim2.new(0, 50, 0, 50)
+toggleButton.Position = UDim2.new(0, 20, 0, 20)
+
+-- ดึงรูปภาพจากลิงก์ตรงนี้
+toggleButton.Image = getOnlineImage("https://i.ibb.co/bgQ9GgKv/icon-SUKITHUB.jpg", "sukit_logo.png")
+toggleButton.BackgroundTransparency = 1
+toggleButton.Parent = screenGui
+
+-- 3. สร้างหน้าต่างแสดงผลหลัก (Main Frame)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainDisplay"
+mainFrame.Size = UDim2.new(0, 450, 0, 300)
+mainFrame.Position = UDim2.new(0.5, -225, 0.5, -150)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = true
+mainFrame.Parent = screenGui
+
+-- แถบหัวข้อของหน้าต่าง
+local titleBar = Instance.new("TextLabel")
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.Font = Enum.Font.SourceSansBold
+titleBar.TextSize = 18
+titleBar.Text = " SUKITxHUB - Main Menu"
+titleBar.TextXAlignment = Enum.TextXAlignment.Left
+titleBar.Parent = mainFrame
+
+-- 4. ระบบกดเปิด/ปิด หน้าต่างแสดงผล
+local isMenuVisible = true
+
+toggleButton.MouseButton1Click:Connect(function()
+    isMenuVisible = not isMenuVisible
+    mainFrame.Visible = isMenuVisible
+end)
+
+-- 5. ระบบทำให้หน้าต่างเมนูลากไปมาได้
+local UserInputService = game:GetService("UserInputService")
+local dragging, dragInput, dragStart, startPos
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 local activeTween = nil -- Added missing variable declaration
@@ -85,7 +195,7 @@ local function showCustomNotif(title, text)
     textLabel.Parent = frame
 end
 
-showCustomNotif("Kaitun", "SUKITxHUB", "https://i.ibb.co/bgQ9GgKv/icon-SUKITHUB.jpg")
+showCustomNotif("Kaitun", "SUKITxHUB")
 
 -- Redeem codes
 local REDEEM_CODES = {
@@ -1931,6 +2041,25 @@ while true do
                         task.wait(0.01)
                     end
                     
+                -- นำเงื่อนไขเลเวล 1500 มาต่อตรงนี้ให้ถูกต้อง
+                elseif level >= 1500 then
+                    ambilQuestForgotten(3)
+                    while isQuestActive() do
+                        local enemy = cariMusuh("Tide Keeper")
+                        if enemy then serangMusuh(enemy) end
+                        task.wait(0.01)
+                    end
+                end
+            end
+        end -- ปิดเช็ค isDead
+    end) -- ปิด pcall
+    
+    if not success then
+        warn("[MAIN LOOP ERROR]:", err)
+    end
+    task.wait(0.5)
+end
+                    
                 elseif level >= 1500 then
                     ambilQuestForgotten(3)
                     while isQuestActive() do
@@ -1984,8 +2113,9 @@ do
         end)
     end
 
-    game.Players.LocalPlayer.CharacterAdded:Connect(onCharacter)
-    if game.Players.LocalPlayer.Character then
-        onCharacter(game.Players.LocalPlayer.Character)
+    local lp = game.Players.LocalPlayer
+    if lp.Character then
+        onCharacter(lp.Character)
     end
+    lp.CharacterAdded:Connect(onCharacter)
 end
